@@ -68,6 +68,27 @@ class MovingItems:
         return db_commit
 
 
+    @db_decorator
+    def create_new_item(self):
+
+        item_name = input('Please input the item you would like to add to your list: ')
+        desired_quantity = input('Please input the desired quantity of this item: ')
+        quantity = input('Please input the current quantity held for this item: ')
+
+        add_item_sql = '''
+        INSERT OR REPLACE INTO moving-items.items(?)
+        '''
+        self.__cursor.execute(add_item_sql, (item_name,))
+
+        add_user_item_sql = '''
+        INSERT INTO moving-items.user_items(?,?,?,?)
+        '''
+        self.__cursor.execute(add_user_item_sql, (self.__user, item_name, desired_quantity, quantity))
+
+        print(f'{item_name} has been added to your list')
+
+
+
     def logoff(self):
 
         print('You will now be logged off, and the program will end.')
@@ -247,7 +268,9 @@ def create_db_tables():
     CREATE IF NOT EXISTS moving-items.users_items(
     USERS_ITEMS_ID INTEGER PRIMARY KEY,
     USER_ID INTEGER,
-    ITEM_ID INTEGER
+    ITEM_ID INTEGER,
+    DESIRED_QUANTITY INTEGER,
+    QUANTITY INTEGER
     )
     '''
 
@@ -258,7 +281,7 @@ def create_db_tables():
 
 def main():
 
-     '''
+    '''
     The main function is a CRUD app (inputs from command line) that interacts with a sqlite3 db, 
     with the purpose of cataloging necessary items to bring when moving or going on a trip.
     '''
