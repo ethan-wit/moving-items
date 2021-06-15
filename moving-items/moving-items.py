@@ -5,21 +5,20 @@ import hashlib
 import random
 import functools
 import sys
+ 
 
 ###################################
-#Enforce foreign keys/schema in create db function
 #Implement methods
+#Get inner joins right
 #Add to main dictionary
 #####################################
 
 #create (if not exist) sqlite tables
-#create_new_item(self, user, item_name, desired_quantity=0, quantity=0)
+#create_new_item(self, user, item_name, desired_quantity, quantity)
 
 #read_user_items(self, user)
-#read_item_desired_quantity(self, user, item_name)
-#read_item_quantity(self, user, item_name)
+#read_item_quantity_desired(self, user, item_name)
 
-#update_item_name(self, user, item_name, new_item_name)
 #update_desired_quantity(self, user, desired_quantity, new_desired_quantity)
 #update_quantity(self, user, quantity, new_quantity)
 #update_clear_quantities(self, user)
@@ -45,6 +44,24 @@ class MovingItems:
         #Connect to db, create cursor
         self.__conn = sqlite3.connect('moving-items.db')
         self.__cursor = conn.cursor()
+        self.item_sql = '''
+        SELECT ITEM_ID FROM items WHERE ITEM = (?)
+        '''
+
+
+    def get_item_id(self, item_input):
+        '''
+        Gets ITEM_ID from database, with item name input as parameter
+        '''
+
+        #Execute select statement, cursor stores data
+        self.__cursor.execute(self.item_sql, (item_input,))
+        #Get the first row from the cursor
+        inserted_item_row = self.__cursor.fetchone()
+        #Get the first (zeroth) column value from the row
+        inserted_item_id = inserted_item_row[0]
+
+        return inserted_item_id
 
 
     def db_decorator(meth):
@@ -70,6 +87,9 @@ class MovingItems:
 
     @db_decorator
     def create_new_item(self):
+        '''
+        Inserts new item in items table, and inserts corresponding item, user, desired quantity, quantity in user_items table
+        '''
 
         item_name = input('Please input the item you would like to add to your list: ')
         desired_quantity = input('Please input the desired quantity of this item: ')
@@ -80,13 +100,127 @@ class MovingItems:
         '''
         self.__cursor.execute(add_item_sql, (item_name,))
 
+        #Item ID
+        inserted_item_id = self.get_item_id(item_name)
+
         add_user_item_sql = '''
         INSERT INTO moving-items.user_items(?,?,?,?)
         '''
-        self.__cursor.execute(add_user_item_sql, (self.__user, item_name, desired_quantity, quantity))
+        self.__cursor.execute(add_user_item_sql, (self.__user, inserted_item_id, desired_quantity, quantity))
 
         print(f'{item_name} has been added to your list')
 
+
+    def read_user_items(self):
+        '''
+        Prints all user's rows in user_items table
+        '''
+        read_user_items_sql = '''
+        SELECT l.USER_ID, r.ITEM, l.DESIRED_QUANTITY, l.QUANTITY 
+        FROM user_items l 
+        INNER JOIN items r ON l.ITEM_ID = r.ITEM_ID 
+        WHERE l.USER_ID = ?
+        '''
+
+        for row in self.__cursor.execute(read_user_items_sql, (self.__user,)):
+            print(row)
+
+
+    def read_item_quantity_and_desired(self):
+        '''
+        Prints the user's quantity and desired quantity of an item
+        '''
+        item_name = input('Please input the item you would like to get the recorded "quantity" and "desired quantity" for: ')
+
+        #Get item ID
+        inserted_item_id = self.get_item_id(item_name)
+
+        read_item_quantity_sql = '''
+        SELECT l.USER_ID, r.ITEM, l.DESIRED_QUANTITY, l.QUANTITY 
+        FROM user_items l
+        INNER JOIN items r ON l.ITEM_ID = r.ITEM_ID
+        WHERE l.USER_ID = ? AND l.ITEM_ID = ?
+        '''
+
+        for row in self.__cursor.execute(read_item_quantity_sql, (self.__user, inserted_item_id)):
+            print(row)
+
+
+    @db_decorator
+    def update_desired_quantity(self):
+
+        item_name = input('Please input the name of the item for which you would like to change the desired quantity: ')
+        new_desired_quantity = inpute("Please input the item's new desired quantity: ")
+
+        #Get item ID
+        inserted_item_id = self.get_item_id(item_name)
+
+        update_item_desired_quantity_sql = '''
+        UPDATE user_items
+        SET DESIRED_QUANTITY = ?
+        WHERE USER_ID = ? AND ITEM_ID = ?
+        '''
+
+        try:
+            self.__cursor.execute(update_item_desired_quantity_sql, (new_desired_quantity, self.__user, inserted_item_id))
+        except:
+            print(f'Could not change desired quantity of {item_name}')
+
+
+    @db_decorator
+    def update_quantity(self):
+
+        item_name = input('Please input the name of the item for which you would like to change the quantity: ')
+        new_quantity = inpute("Please input the item's new quantity: ")
+
+        #Get item ID
+        inserted_item_id = self.get_item_id(item_name)
+
+        update_item_quantity_sql = '''
+        UPDATE user_items
+        SET QUANTITY = ?
+        WHERE USER_ID = ? AND ITEM_ID = ?
+        '''
+
+        try:
+            self.__cursor.execute(update_item_quantity_sql, (new_quantity, self.__user, inserted_item_id))
+        except:
+            print(f'Could not change quantity of {item_name}')
+    
+
+    @db_decorator
+    def update_quantities_0(self):
+
+        confirm = input('Please input "yes" if you would like to set all your item quantities to zero. Please input "no" otherwise: ')
+
+        if confirm == "yes":
+            update_quantities_0_sql = '''
+            UPDATE user_items
+            SET QUANTITY = 0
+            WHERE USER_ID = ?
+            '''
+            self.__cursor.execute(update_quantities_0_sql, (self.__user))
+        elif confirm == 'no':
+            print("Understood. No action will be taken.")
+            pass
+        else:
+            print("Invalid input. No action will be taken.")
+            pass
+
+
+    @db_decorator
+    def delete_item(self):
+
+        item_name = input('Please input the name of the item for which you would like to delete from your list: ')
+
+        #Get item ID
+        inserted_item_id = self.get_item_id(item_name)
+
+        delete_item_sql = '''
+        DELETE FROM user_items
+        WHERE USER_ID = ? AND ITEM_ID = ?
+        '''
+        self.__cursor.execute(delete_item_sql, (self.__user, inserted_item_id))
 
 
     def logoff(self):
@@ -141,7 +275,6 @@ class Authenticator():
             self._login()
 
 
-
     def _no_dup_username(self):
         '''
         Create new username (8 integers) that is unique in list of existing usernames
@@ -163,7 +296,6 @@ class Authenticator():
             rand_username = random.randint(10000000,99999999)
 
         return rand_username 
-
 
 
     def _signup(self):
@@ -194,7 +326,6 @@ class Authenticator():
         self.__conn.close()
 
 
-
     def _login(self):
         '''
         Logs in user, such that they can perform CRUD operations on their database items.
@@ -209,7 +340,7 @@ class Authenticator():
         match_username = '''
         SELECT USERNAME FROM users WHERE USERNAME = ?
         '''
-        cursor.execute(match_username, (self.__username,))
+        self.__cursor.execute(match_username, (self.__username,))
         match_row_username = self.__cursor.fetchone()
 
         #Get match input username to a username in users table
@@ -271,6 +402,8 @@ def create_db_tables():
     ITEM_ID INTEGER,
     DESIRED_QUANTITY INTEGER,
     QUANTITY INTEGER
+    FOREIGN KEY (USER_ID) REFERENCES users(USERNAME)
+    FOREIGN KEY (ITEM_ID) REFERENCES items(ITEM_ID)
     )
     '''
 
