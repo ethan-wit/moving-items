@@ -5,11 +5,11 @@ import hashlib
 import random
 import functools
 import sys
- 
+import time
+import re 
+
 
 ###################################
-#Implement methods
-#Get inner joins right
 #Add to main dictionary
 #####################################
 
@@ -43,7 +43,7 @@ class MovingItems:
         self.__user = user
         #Connect to db, create cursor
         self.__conn = sqlite3.connect('moving-items.db')
-        self.__cursor = conn.cursor()
+        self.__cursor = self.__conn.cursor()
         self.item_sql = '''
         SELECT ITEM_ID FROM items WHERE ITEM = (?)
         '''
@@ -88,7 +88,7 @@ class MovingItems:
     @db_decorator
     def create_new_item(self):
         '''
-        Inserts new item in items table, and inserts corresponding item, user, desired quantity, quantity in user_items table
+        Inserts new item in items table, and inserts corresponding item, user, desired quantity, quantity in users_items table
         '''
 
         item_name = input('Please input the item you would like to add to your list: ')
@@ -96,7 +96,7 @@ class MovingItems:
         quantity = input('Please input the current quantity held for this item: ')
 
         add_item_sql = '''
-        INSERT OR REPLACE INTO moving-items.items(?)
+        INSERT OR REPLACE INTO items (ITEM) VALUES (?)
         '''
         self.__cursor.execute(add_item_sql, (item_name,))
 
@@ -104,9 +104,9 @@ class MovingItems:
         inserted_item_id = self.get_item_id(item_name)
 
         add_user_item_sql = '''
-        INSERT INTO moving-items.user_items(?,?,?,?)
+        INSERT INTO users_items (USER_ID, ITEM_ID, DESIRED_QUANTITY, QUANTITY) VALUES (?,?,?,?)
         '''
-        self.__cursor.execute(add_user_item_sql, (self.__user, inserted_item_id, desired_quantity, quantity))
+        self.__cursor.execute(add_user_item_sql, (self.__user, inserted_item_id, desired_quantity, quantity,))
 
         print(f'{item_name} has been added to your list')
 
@@ -117,7 +117,7 @@ class MovingItems:
         '''
         read_user_items_sql = '''
         SELECT l.USER_ID, r.ITEM, l.DESIRED_QUANTITY, l.QUANTITY 
-        FROM user_items l 
+        FROM users_items l 
         INNER JOIN items r ON l.ITEM_ID = r.ITEM_ID 
         WHERE l.USER_ID = ?
         '''
@@ -137,7 +137,7 @@ class MovingItems:
 
         read_item_quantity_sql = '''
         SELECT l.USER_ID, r.ITEM, l.DESIRED_QUANTITY, l.QUANTITY 
-        FROM user_items l
+        FROM users_items l
         INNER JOIN items r ON l.ITEM_ID = r.ITEM_ID
         WHERE l.USER_ID = ? AND l.ITEM_ID = ?
         '''
@@ -156,7 +156,7 @@ class MovingItems:
         inserted_item_id = self.get_item_id(item_name)
 
         update_item_desired_quantity_sql = '''
-        UPDATE user_items
+        UPDATE users_items
         SET DESIRED_QUANTITY = ?
         WHERE USER_ID = ? AND ITEM_ID = ?
         '''
@@ -177,7 +177,7 @@ class MovingItems:
         inserted_item_id = self.get_item_id(item_name)
 
         update_item_quantity_sql = '''
-        UPDATE user_items
+        UPDATE users_items
         SET QUANTITY = ?
         WHERE USER_ID = ? AND ITEM_ID = ?
         '''
@@ -195,7 +195,7 @@ class MovingItems:
 
         if confirm == "yes":
             update_quantities_0_sql = '''
-            UPDATE user_items
+            UPDATE users_items
             SET QUANTITY = 0
             WHERE USER_ID = ?
             '''
@@ -217,7 +217,7 @@ class MovingItems:
         inserted_item_id = self.get_item_id(item_name)
 
         delete_item_sql = '''
-        DELETE FROM user_items
+        DELETE FROM users_items
         WHERE USER_ID = ? AND ITEM_ID = ?
         '''
         self.__cursor.execute(delete_item_sql, (self.__user, inserted_item_id))
@@ -237,13 +237,13 @@ class Authenticator():
     '''
 
 
-    def __init__():
+    def __init__(self):
 
         #class variables for user 
         self.__username = None
         self.__password = None
         self.__conn = sqlite3.connect('moving-items.db')
-        self.__cursor = conn.cursor()
+        self.__cursor = self.__conn.cursor()
 
 
     def greeting(self):
@@ -253,7 +253,7 @@ class Authenticator():
         '''
 
         login_signup_decision = input('Would you like to "signup" or "login": ')
-        while (login_signup_decision != "signup") or (login_signup_decision != "login"):
+        while not ((login_signup_decision != "signup") | (login_signup_decision != "login")):
             login_signup_decision = input('You did not input "signup" or "login". Please input one of these options: ')
             time.sleep(2)
 
@@ -261,18 +261,18 @@ class Authenticator():
             self._signup()
             login_response = input('Would you now like to log in? Please respond either "yes" or "no".')
             if login_response == "yes":
-                self._login()
+                return self._login()
             elif login_response == "no":
                 print("Thank you. The program will now end.")
-                time.sleep(4)
+                time.sleep(2)
                 sys.exit()
             else:
                 print("Invalid response. The program will now end.")
-                time.sleep(4)
+                time.sleep(2)
                 sys.exit()
 
         elif login_signup_decision == "login":
-            self._login()
+            return self._login()
 
 
     def _no_dup_username(self):
@@ -316,12 +316,12 @@ class Authenticator():
 
         print(f'Thank you. Your password meets the critera. You have been assigned the username: {self.__username}. Please remember your username and password, as they will be required to log in.')
         #Hash password (should also salt if placed into production)
-        hashed_password = hashlib.sha256(self.__password).hexdigest()
+        hashed_password = hashlib.sha256(self.__password.encode('utf-8')).hexdigest()
         #Place username & hashed password into users table
         insert_username_password = '''
-        INSERT INTO moving-items.users (?,?)
+        INSERT INTO users VALUES (?,?)
         '''
-        self.__cursor.execute(insert_username_password, (self.__username, hashed_password))
+        self.__cursor.execute(insert_username_password, (self.__username, hashed_password,))
         self.__conn.commit()
         self.__conn.close()
 
@@ -347,7 +347,7 @@ class Authenticator():
         match_password = '''
         SELECT PASSWORD FROM users WHERE PASSWORD = ?
         '''
-        self.__cursor.execute(match_password, (hashlib.sha256(self.__password).hexdigest(),))
+        self.__cursor.execute(match_password, (hashlib.sha256(self.__password.encode('utf-8')).hexdigest(),))
         match_row_password = self.__cursor.fetchone()
 
         self.__conn.close()
@@ -357,7 +357,7 @@ class Authenticator():
             time.sleep(5)
             sys.exit()
 
-        elif (match_row_password != None):
+        elif (match_row_username != None):
             print('User found.')
 
             if (match_row_password != None):
@@ -378,16 +378,16 @@ def create_db_tables():
 
     #Create (if not exist) items table
     items_table = '''
-    CREATE TABLE IF NOT EXISTS moving-items.items(
+    CREATE TABLE IF NOT EXISTS items(
     ITEM_ID INTEGER PRIMARY KEY,
-    ITEM TEXT,
+    ITEM TEXT
     )
     '''
     cursor.execute(items_table)
 
     #Create (if not exist) users table in db
     create_users_table = '''
-    CREATE IF NOT EXISTS moving-items.users(
+    CREATE TABLE IF NOT EXISTS users(
     USERNAME INTEGER PRIMARY KEY,
     PASSWORD TEXT
     )
@@ -395,24 +395,25 @@ def create_db_tables():
     cursor.execute(create_users_table)
     
     #Create (if not exist) users_items table
-    users_items_table = '''
-    CREATE IF NOT EXISTS moving-items.users_items(
+    create_users_items_table = '''
+    CREATE TABLE IF NOT EXISTS users_items(
     USERS_ITEMS_ID INTEGER PRIMARY KEY,
     USER_ID INTEGER,
     ITEM_ID INTEGER,
     DESIRED_QUANTITY INTEGER,
-    QUANTITY INTEGER
-    FOREIGN KEY (USER_ID) REFERENCES users(USERNAME)
-    FOREIGN KEY (ITEM_ID) REFERENCES items(ITEM_ID)
+    QUANTITY INTEGER,
+    FOREIGN KEY(USER_ID) REFERENCES users(USERNAME),
+    FOREIGN KEY(ITEM_ID) REFERENCES items(ITEM_ID)
     )
     '''
+    cursor.execute(create_users_items_table)
 
     #Commit and disconnect from db
     conn.commit()
     conn.close()
 
 
-def main():
+if __name__ == "__main__":
 
     '''
     The main function is a CRUD app (inputs from command line) that interacts with a sqlite3 db, 
@@ -428,17 +429,16 @@ def main():
 
     #user interface object
     crud = MovingItems(user)
-
-    crud_dict = {'input new item' : , 'view items' : , "view item's desired quantity" : , "view item's quantity" :, "update item's name" :, "update item's desired quantity" :, "update item's quantity" :, "clear item quantities" :, 'delete item' :}
-
+    
+    #dict of user input keys with method values
+    crud_dict = {'input new item' : 'create_new_item', 'view items' : 'read_user_items', "view item's quantity and desired quantity" : 'read_item_quantity_and_desired', "update item's desired quantity" : 'update_desired_quantity', "update item's quantity" : 'update_quantity', "clear item quantities" : 'update_quantities_0', 'delete item' : 'delete_item'}
+    
     #user method input
     def user_input():
         user_method_input = input('''Please input the action you would like to take. The options are listed below:\n
         input new item\n
         view items\n
-        view item's desired quantity\n
-        view item's quantity\n
-        update item's name\n
+        view item's quantity and desired quantity\n
         update item's desired quantity\n
         update item's quantity\n
         clear item quantities\n
@@ -450,23 +450,29 @@ def main():
     
     #user input
     user_method_input = user_input()
+    time.sleep(1)
 
     while user_method_input != 'log off':
 
         if user_method_input in crud_dict.keys():
             #Execute chosen action
             crud_method = crud_dict.get(user_method_input)
-            crud_method = crud_method + '()'
-            crud.crud_method
+            crud_method = "." + crud_method + '()'
+            crud_exec = "crud" + crud_method
+            exec(crud_exec)
 
         else:
             print('Invalid action. You must input an action from the list.')
 
         #re-init user input
+        print('\n')
         user_method_input = user_input()
+        time.sleep(1)
 
 
     if user_method_input == 'log off':
+        print('\n')
+        time.sleep(1)
         crud.logoff()
 
 
