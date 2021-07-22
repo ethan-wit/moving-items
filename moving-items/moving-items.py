@@ -108,6 +108,7 @@ class MovingItems:
         '''
         self.__cursor.execute(add_user_item_sql, (self.__user, inserted_item_id, desired_quantity, quantity,))
 
+        print('\n')
         print(f'{item_name} has been added to your list')
 
 
@@ -122,6 +123,7 @@ class MovingItems:
         WHERE l.USER_ID = ?
         '''
 
+        print('\n')
         for row in self.__cursor.execute(read_user_items_sql, (self.__user,)):
             print(row)
 
@@ -142,6 +144,7 @@ class MovingItems:
         WHERE l.USER_ID = ? AND l.ITEM_ID = ?
         '''
 
+        print('\n')
         for row in self.__cursor.execute(read_item_quantity_sql, (self.__user, inserted_item_id)):
             print(row)
 
@@ -150,7 +153,7 @@ class MovingItems:
     def update_desired_quantity(self):
 
         item_name = input('Please input the name of the item for which you would like to change the desired quantity: ')
-        new_desired_quantity = inpute("Please input the item's new desired quantity: ")
+        new_desired_quantity = input("Please input the item's new desired quantity: ")
 
         #Get item ID
         inserted_item_id = self.get_item_id(item_name)
@@ -164,6 +167,7 @@ class MovingItems:
         try:
             self.__cursor.execute(update_item_desired_quantity_sql, (new_desired_quantity, self.__user, inserted_item_id))
         except:
+            print('\n')
             print(f'Could not change desired quantity of {item_name}')
 
 
@@ -171,7 +175,7 @@ class MovingItems:
     def update_quantity(self):
 
         item_name = input('Please input the name of the item for which you would like to change the quantity: ')
-        new_quantity = inpute("Please input the item's new quantity: ")
+        new_quantity = input("Please input the item's new quantity: ")
 
         #Get item ID
         inserted_item_id = self.get_item_id(item_name)
@@ -185,25 +189,31 @@ class MovingItems:
         try:
             self.__cursor.execute(update_item_quantity_sql, (new_quantity, self.__user, inserted_item_id))
         except:
+            print('\n')
             print(f'Could not change quantity of {item_name}')
     
 
     @db_decorator
     def update_quantities_0(self):
 
+        print('\n')
         confirm = input('Please input "yes" if you would like to set all your item quantities to zero. Please input "no" otherwise: ')
 
         if confirm == "yes":
             update_quantities_0_sql = '''
             UPDATE users_items
             SET QUANTITY = 0
-            WHERE USER_ID = ?
+            WHERE QUANTITY > 0
             '''
-            self.__cursor.execute(update_quantities_0_sql, (self.__user))
+            self.__cursor.execute(update_quantities_0_sql)
+            print('\n')
+            print('Item quantities set to zero.')
         elif confirm == 'no':
+            print('\n')
             print("Understood. No action will be taken.")
             pass
         else:
+            print('\n')
             print("Invalid input. No action will be taken.")
             pass
 
@@ -253,7 +263,7 @@ class Authenticator():
         '''
 
         login_signup_decision = input('Would you like to "signup" or "login": ')
-        while not ((login_signup_decision != "signup") | (login_signup_decision != "login")):
+        while ((login_signup_decision != "signup") & (login_signup_decision != "login")):
             login_signup_decision = input('You did not input "signup" or "login". Please input one of these options: ')
             time.sleep(2)
 
